@@ -48,7 +48,9 @@ class generator(nn.Module):
 		nn.init.constant_(self.linear_7.bias,0)
 
 	def forward(self, points, z, is_training=False):
+		#z(bs, z_dim)
 		zs = z.view(-1,1,self.z_dim).repeat(1,points.size()[1],1)
+		#zs(bs,resolution^3,z_dim)
 		pointz = torch.cat([points,zs],2)
 
 		l1 = self.linear_1(pointz)
@@ -168,11 +170,21 @@ class IM_AE(object):
 		data_hdf5_name = self.data_dir+'/'+self.dataset_load+'.hdf5'
 		if os.path.exists(data_hdf5_name):
 			data_dict = h5py.File(data_hdf5_name, 'r')
+
+			#data_points(35019, 4096, 3) (n_samples, resolution^3, 3)
 			self.data_points = (data_dict['points_'+str(self.sample_vox_size)][:].astype(np.float32)+0.5)/256-0.5
+
+			#data_values(35019, 4096, 1) (n_samples, resolution^3, 1). Determines if that specific point is on/in the 3D shape or not.
 			self.data_values = data_dict['values_'+str(self.sample_vox_size)][:].astype(np.float32)
+
+			#data_voxels(35019, 64,64,64, 1) (n_samples, 64,64,64, 1)
 			self.data_voxels = data_dict['voxels'][:]
+
+			#load_point_batch_size(resolution^3)
 			self.load_point_batch_size = self.data_points.shape[1]
+
 			#reshape to NCHW
+			#data_voxels(35019,1 64,64,64)
 			self.data_voxels = np.reshape(self.data_voxels, [-1,1,self.input_size,self.input_size,self.input_size])
 		else:
 			print("error: cannot load "+data_hdf5_name)
@@ -336,7 +348,9 @@ class IM_AE(object):
 				point_value = point_value.to(self.device)
 
 				self.im_network.zero_grad()
+				#net_out(bs, resolution^3,1)
 				_, net_out = self.im_network(batch_voxels, None, point_coord, is_training=True)
+				#errSP is mean squared error
 				errSP = self.loss(net_out, point_value)
 
 				errSP.backward()
